@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     api_host: str = "127.0.0.1"
     api_port: int = 8000
     api_v1_prefix: str = "/api/v1"
-    allowed_origins: str = "http://localhost:3000,http://localhost:5173"
+    allowed_origins: str = "http://localhost:3000,http://localhost:5173,http://localhost:8090"
     
     @property
     def cors_origins(self) -> list[str]:

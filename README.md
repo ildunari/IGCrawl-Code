@@ -23,7 +23,7 @@ A self-hosted Instagram analytics tool that safely crawls follower/following dat
    .\scripts\startup.ps1 -Mode docker -Environment production
    ```
 
-4. Access the dashboard at `http://localhost`
+4. Access the dashboard at `http://localhost:8090`
 
 ### Native Windows Deployment
 
