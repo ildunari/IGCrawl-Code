@@ -46,6 +46,14 @@ class Settings(BaseSettings):
     max_followers_per_scrape: int = 10000
     batch_size: int = 100
     
+    # Proxy Configuration
+    use_proxy: bool = False
+    proxy_host: str = "brd.superproxy.io"
+    proxy_port: int = 33335  # New BrightData port
+    proxy_username: Optional[str] = None
+    proxy_password: Optional[str] = None
+    proxy_ssl_cert_path: str = "ssl/brightdata_proxy_ca/New SSL certifcate - MUST BE USED WITH PORT 33335/BrightData SSL certificate (port 33335).crt"
+    
     # Export Configuration
     export_batch_size: int = 5000
     export_timeout_seconds: int = 300

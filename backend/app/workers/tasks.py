@@ -1,6 +1,7 @@
 from typing import Dict, List, Optional
 import json
 import redis
+import asyncio
 from datetime import datetime
 from sqlmodel import Session
 
@@ -15,8 +16,10 @@ settings = get_settings()
 rate_limiter = SlidingWindowRateLimiter()
 
 
-def update_scrape_progress(job_id: str, progress: Dict):
+def update_scrape_progress(job_id: str, progress: Dict, scrape_id: Optional[int] = None):
     """Update scrape progress in Redis for SSE"""
+    if scrape_id:
+        progress["scrape_id"] = scrape_id
     progress_key = f"scrape_progress_{job_id}"
     redis_conn.setex(progress_key, 300, json.dumps(progress))  # 5 minute TTL
 
@@ -41,7 +44,7 @@ async def scrape_instagram_account(
                 "message": f"Rate limited. Waiting {int(wait_time)} seconds...",
                 "progress": 0,
                 "retry_after": int(wait_time)
-            })
+            }, scrape_id)
             await asyncio.sleep(wait_time)
         
         with session_scope() as session:
@@ -62,7 +65,7 @@ async def scrape_instagram_account(
                 "status": "in_progress",
                 "message": "Starting scrape...",
                 "progress": 0
-            })
+            }, scrape_id)
         
         # Record the request
         rate_limiter.record_request(identifier)
@@ -76,7 +79,7 @@ async def scrape_instagram_account(
                 "status": "in_progress",
                 "message": "Fetching followers and following...",
                 "progress": 25
-            })
+            }, scrape_id)
             
             data = await scraper.scrape_both(username, use_private)
             followers = data["followers"]
@@ -87,7 +90,7 @@ async def scrape_instagram_account(
                 "status": "in_progress",
                 "message": "Fetching followers...",
                 "progress": 25
-            })
+            }, scrape_id)
             
             followers = await scraper.scrape_followers(username, use_private)
             following = []
@@ -97,7 +100,7 @@ async def scrape_instagram_account(
                 "status": "in_progress",
                 "message": "Fetching following...",
                 "progress": 25
-            })
+            }, scrape_id)
             
             followers = []
             following = await scraper.scrape_following(username, use_private)
@@ -111,7 +114,7 @@ async def scrape_instagram_account(
                 "status": "in_progress",
                 "message": "Processing data...",
                 "progress": 50
-            })
+            }, scrape_id)
             
             # Create follower records
             follower_records = []
@@ -160,7 +163,7 @@ async def scrape_instagram_account(
                 "status": "in_progress",
                 "message": "Saving to database...",
                 "progress": 75
-            })
+            }, scrape_id)
             
             # Bulk insert followers
             session.bulk_save_objects(follower_records)
@@ -186,7 +189,7 @@ async def scrape_instagram_account(
                     "followers_count": len(followers),
                     "following_count": len(following)
                 }
-            })
+            }, scrape_id)
             
     except Exception as e:
         with session_scope() as session:
@@ -202,6 +205,6 @@ async def scrape_instagram_account(
                 "status": "failed",
                 "message": f"Scrape failed: {str(e)}",
                 "progress": 0
-            })
+            }, scrape_id)
         
         raise

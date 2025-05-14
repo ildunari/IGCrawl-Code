@@ -10,4 +10,13 @@ export default defineConfig({
       '@': resolve(__dirname, './src'),
     },
   },
+  assetsInclude: ['**/*.png'],
+  build: {
+    assetsDir: 'assets',
+    rollupOptions: {
+      output: {
+        assetFileNames: 'assets/[name]-[hash][extname]'
+      }
+    }
+  }
 })

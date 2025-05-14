@@ -13,6 +13,8 @@ class ScrapeStatus(str, Enum):
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
+    PARTIAL = "partial"
 
 
 class ScrapeType(str, Enum):
@@ -39,6 +41,11 @@ class Scrape(SQLModel, table=True):
     following_count: Optional[int] = None
     new_followers: Optional[int] = None
     lost_followers: Optional[int] = None
+    
+    # Progress tracking for partial saves
+    followers_scraped: Optional[int] = None
+    following_scraped: Optional[int] = None
+    is_partial: bool = Field(default=False)
     
     # Error handling
     error_message: Optional[str] = None

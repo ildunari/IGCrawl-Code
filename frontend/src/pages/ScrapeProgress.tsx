@@ -6,7 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { CheckCircle, XCircle, Loader2, RefreshCw } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, RefreshCw, XSquare } from 'lucide-react';
+import { CancelScrapeDialog } from '@/components/CancelScrapeDialog';
+import { useToast } from '@/components/ui/use-toast';
 
 interface ProgressData {
   status: string;
@@ -17,13 +19,17 @@ interface ProgressData {
     following_count: number;
   };
   retry_after?: number;
+  scrape_id?: number;
 }
 
 export function ScrapeProgress() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [progress, setProgress] = useState<ProgressData | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [canceling, setCanceling] = useState(false);
 
   const { data: account } = useQuery({
     queryKey: ['account', id],
@@ -105,6 +111,31 @@ export function ScrapeProgress() {
     }
   };
 
+  const handleCancel = async (savePartial: boolean) => {
+    if (!progress?.scrape_id || canceling) return;
+    
+    setCanceling(true);
+    try {
+      await scrapesApi.cancel(progress.scrape_id, { save_partial: savePartial });
+      toast({
+        title: savePartial ? 'Partial results saved' : 'Scrape canceled',
+        description: savePartial 
+          ? 'The partial results have been saved to your account.' 
+          : 'The scrape has been canceled and all data has been discarded.',
+      });
+      navigate(`/accounts/${id}`);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to cancel the scrape. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setCanceling(false);
+      setShowCancelDialog(false);
+    }
+  };
+
   return (
     <div className="p-8 max-w-2xl mx-auto">
       <Card>
@@ -157,14 +188,34 @@ export function ScrapeProgress() {
                 Try Again
               </Button>
             )}
-            {progress?.status !== 'completed' && progress?.status !== 'failed' && (
-              <Button onClick={() => navigate('/accounts')} variant="outline">
-                Run in Background
-              </Button>
+            {progress?.status !== 'completed' && progress?.status !== 'failed' && progress?.scrape_id && (
+              <>
+                <Button onClick={() => navigate('/accounts')} variant="outline">
+                  Run in Background
+                </Button>
+                <Button 
+                  onClick={() => setShowCancelDialog(true)} 
+                  variant="destructive"
+                  disabled={canceling}
+                >
+                  <XSquare className="mr-2 h-4 w-4" />
+                  Cancel Scrape
+                </Button>
+              </>
             )}
           </div>
         </CardContent>
       </Card>
+
+      <CancelScrapeDialog
+        open={showCancelDialog}
+        onOpenChange={setShowCancelDialog}
+        onCancel={handleCancel}
+        scraped={{
+          followers: progress?.results?.followers_count || 0,
+          following: progress?.results?.following_count || 0,
+        }}
+      />
     </div>
   );
 }

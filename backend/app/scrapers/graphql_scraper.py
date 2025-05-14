@@ -3,6 +3,7 @@ from typing import Dict, List, Optional
 import json
 import re
 from ..utils.crypto import decrypt_credential
+from ..config import get_settings
 
 
 class GraphQLScraper:
@@ -13,14 +14,28 @@ class GraphQLScraper:
     FOLLOWING_HASH = "6df9f20c4ad9b22fb7b35b816f0c426e"  # Instagram's query hash for following
     
     def __init__(self):
-        self.session = httpx.Client(
-            headers={
+        settings = get_settings()
+        
+        # Prepare httpx client arguments
+        client_args = {
+            "headers": {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
                 "Accept": "*/*",
                 "Accept-Language": "en-US,en;q=0.5",
                 "X-Requested-With": "XMLHttpRequest"
             }
-        )
+        }
+        
+        # Configure proxy if enabled
+        if settings.use_proxy and settings.proxy_username and settings.proxy_password:
+            proxy_url = f"http://{settings.proxy_username}:{settings.proxy_password}@{settings.proxy_host}:{settings.proxy_port}"
+            client_args["proxy"] = proxy_url
+            
+            # Add SSL certificate if using HTTPS proxy
+            if settings.proxy_ssl_cert_path:
+                client_args["verify"] = settings.proxy_ssl_cert_path
+        
+        self.session = httpx.Client(**client_args)
     
     async def get_user_id(self, username: str) -> Optional[str]:
         """Get user ID from username"""

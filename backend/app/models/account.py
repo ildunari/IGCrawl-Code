@@ -16,6 +16,9 @@ class Account(SQLModel, table=True):
     follower_count: Optional[int] = None
     following_count: Optional[int] = None
     
+    # Authentication (encrypted)
+    encrypted_password: Optional[str] = None
+    
     # Metadata
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

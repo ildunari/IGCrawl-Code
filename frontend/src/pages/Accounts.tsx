@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Plus, Star, Play, Eye, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/lib/toast';
+import placeholderAvatar from '@/assets/placeholder-avatar.png';
 
 export function Accounts() {
   const navigate = useNavigate();
@@ -55,7 +56,7 @@ export function Accounts() {
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <img
-            src={row.original.profile_pic_url || '/placeholder-avatar.png'}
+            src={row.original.profile_pic_url || placeholderAvatar}
             alt={row.original.username}
             className="h-8 w-8 rounded-full"
           />

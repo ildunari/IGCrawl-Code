@@ -11,6 +11,7 @@ from ..models import Scrape, Account, ScrapeStatus, ScrapeType
 from ..schemas.scrape import ScrapeCreate, ScrapeResponse
 from ..workers import queue, scrape_instagram_account
 from ..workers.queue import redis_conn
+from rq.job import Job
 
 router = APIRouter()
 
@@ -105,3 +106,71 @@ async def get_account_scrapes(
     
     scrapes = session.exec(query).all()
     return scrapes
+
+
+@router.post("/{scrape_id}/cancel", response_model=ScrapeResponse)
+async def cancel_scrape(
+    scrape_id: int,
+    save_partial: bool = True,
+    session: Session = Depends(get_session)
+):
+    """Cancel an ongoing scrape and optionally save partial results"""
+    scrape = session.get(Scrape, scrape_id)
+    if not scrape:
+        raise HTTPException(status_code=404, detail="Scrape not found")
+    
+    if scrape.status not in [ScrapeStatus.PENDING, ScrapeStatus.IN_PROGRESS]:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Cannot cancel scrape with status: {scrape.status}"
+        )
+    
+    # Cancel the job if it exists
+    if scrape.job_id:
+        try:
+            job = Job.fetch(scrape.job_id, connection=redis_conn)
+            job.cancel()
+        except Exception as e:
+            print(f"Error cancelling job: {e}")
+    
+    # Update scrape status
+    scrape.status = ScrapeStatus.CANCELLED if not save_partial else ScrapeStatus.PARTIAL
+    if save_partial:
+        scrape.is_partial = True
+        # Get current progress from Redis
+        progress_key = f"scrape_progress_{scrape.job_id}"
+        progress_data = redis_conn.get(progress_key)
+        if progress_data:
+            progress = json.loads(progress_data)
+            scrape.followers_scraped = progress.get("followers_scraped", 0)
+            scrape.following_scraped = progress.get("following_scraped", 0)
+    
+    scrape.completed_at = datetime.utcnow()
+    session.add(scrape)
+    session.commit()
+    session.refresh(scrape)
+    
+    return scrape
+
+
+@router.delete("/{scrape_id}")
+async def delete_scrape(
+    scrape_id: int,
+    session: Session = Depends(get_session)
+):
+    """Delete a scrape and its associated data"""
+    scrape = session.get(Scrape, scrape_id)
+    if not scrape:
+        raise HTTPException(status_code=404, detail="Scrape not found")
+    
+    # Only allow deletion of completed, failed, or cancelled scrapes
+    if scrape.status in [ScrapeStatus.PENDING, ScrapeStatus.IN_PROGRESS]:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete an ongoing scrape. Cancel it first."
+        )
+    
+    session.delete(scrape)
+    session.commit()
+    
+    return {"message": "Scrape deleted successfully"}

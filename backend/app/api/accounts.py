@@ -5,7 +5,8 @@ from datetime import datetime
 
 from ..database import get_session
 from ..models import Account
-from ..schemas.account import AccountCreate, AccountUpdate, AccountResponse
+from ..schemas.account import AccountCreate, AccountUpdate, AccountResponse, CredentialUpdate
+from ..services.credential_service import CredentialService
 
 router = APIRouter()
 
@@ -30,7 +31,7 @@ async def list_accounts(
     query = query.offset(skip).limit(limit)
     accounts = session.exec(query).all()
     
-    return accounts
+    return [AccountResponse.from_orm(account) for account in accounts]
 
 
 @router.get("/{account_id}", response_model=AccountResponse)
@@ -89,6 +90,51 @@ async def update_account(
     session.refresh(account)
     
     return account
+
+
+@router.post("/{account_id}/credentials")
+async def update_credentials(
+    account_id: int,
+    credentials: CredentialUpdate,
+    session: Session = Depends(get_session)
+):
+    """Store Instagram credentials for an account"""
+    account = session.get(Account, account_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    # Store credentials (automatically encrypted)
+    success = CredentialService.store_credentials(
+        username=account.username,
+        password=credentials.password,
+        session=session
+    )
+    
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to store credentials")
+    
+    return {"message": "Credentials stored successfully"}
+
+
+@router.delete("/{account_id}/credentials")
+async def remove_credentials(
+    account_id: int,
+    session: Session = Depends(get_session)
+):
+    """Remove stored Instagram credentials"""
+    account = session.get(Account, account_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    success = CredentialService.remove_credentials(
+        username=account.username,
+        session=session
+    )
+    
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to remove credentials")
+    
+    return {"message": "Credentials removed successfully"}
 
 
 @router.delete("/{account_id}")

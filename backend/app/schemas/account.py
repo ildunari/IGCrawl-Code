@@ -23,6 +23,10 @@ class AccountUpdate(BaseModel):
     is_bookmarked: Optional[bool] = None
 
 
+class CredentialUpdate(BaseModel):
+    password: str
+
+
 class AccountResponse(AccountBase):
     id: int
     full_name: Optional[str]
@@ -34,6 +38,26 @@ class AccountResponse(AccountBase):
     created_at: datetime
     updated_at: datetime
     last_scraped: Optional[datetime]
+    has_credentials: bool = False
     
     class Config:
         orm_mode = True
+        
+    @staticmethod
+    def from_orm(account):
+        response = AccountResponse(
+            id=account.id,
+            username=account.username,
+            is_bookmarked=account.is_bookmarked,
+            full_name=account.full_name,
+            profile_pic_url=account.profile_pic_url,
+            is_verified=account.is_verified,
+            is_private=account.is_private,
+            follower_count=account.follower_count,
+            following_count=account.following_count,
+            created_at=account.created_at,
+            updated_at=account.updated_at,
+            last_scraped=account.last_scraped,
+            has_credentials=bool(account.encrypted_password)
+        )
+        return response

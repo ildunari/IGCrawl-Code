@@ -133,37 +133,55 @@ class RateLimitMiddleware:
     
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http":
+            # Skip rate limiting for OPTIONS requests (CORS preflight)
+            if scope["method"] == "OPTIONS":
+                await self.app(scope, receive, send)
+                return
+                
             # Extract identifier (IP address or user ID)
             client_ip = scope["client"][0] if scope["client"] else "unknown"
             identifier = f"ip:{client_ip}"
             
-            # Check if this is an API endpoint
+            # Check if this is an API endpoint that should be rate limited
             path = scope["path"]
             if path.startswith("/api/v1/scrapes") or path.startswith("/api/v1/export"):
                 can_request, wait_time = self.rate_limiter.can_make_request(identifier)
                 
                 if not can_request:
-                    response = {
-                        "status": 429,
-                        "headers": [
-                            (b"content-type", b"application/json"),
-                            (b"retry-after", str(int(wait_time)).encode()),
-                        ],
-                        "body": {
-                            "error": "Rate limit exceeded",
-                            "retry_after": int(wait_time),
-                            "message": f"Please wait {int(wait_time)} seconds before making another request"
-                        }
+                    # Get the origin header from the request
+                    headers = dict(scope["headers"])
+                    origin = headers.get(b"origin", b"").decode()
+                    
+                    # Determine allowed origin
+                    allowed_origins = settings.cors_origins
+                    if origin in allowed_origins:
+                        cors_origin = origin
+                    else:
+                        cors_origin = allowed_origins[0] if allowed_origins else "*"
+                    
+                    response_body = {
+                        "error": "Rate limit exceeded",
+                        "retry_after": int(wait_time),
+                        "message": f"Please wait {int(wait_time)} seconds before making another request"
                     }
+                    
+                    response_headers = [
+                        (b"content-type", b"application/json"),
+                        (b"retry-after", str(int(wait_time)).encode()),
+                        (b"access-control-allow-origin", cors_origin.encode()),
+                        (b"access-control-allow-methods", b"GET, POST, PUT, DELETE, OPTIONS"),
+                        (b"access-control-allow-headers", b"*"),
+                        (b"access-control-allow-credentials", b"true"),
+                    ]
                     
                     await send({
                         "type": "http.response.start",
-                        "status": response["status"],
-                        "headers": response["headers"],
+                        "status": 429,
+                        "headers": response_headers,
                     })
                     await send({
                         "type": "http.response.body",
-                        "body": json.dumps(response["body"]).encode(),
+                        "body": json.dumps(response_body).encode(),
                     })
                     return
                 

@@ -4,8 +4,9 @@ from instagrapi.exceptions import LoginRequired, PleaseWaitFewMinutes
 import time
 import asyncio
 from ..config import get_settings
-from ..utils.crypto import decrypt_credential
+from ..services.credential_service import CredentialService
 from .graphql_scraper import GraphQLScraper
+from sqlmodel import Session
 
 settings = get_settings()
 
@@ -13,24 +14,45 @@ settings = get_settings()
 class InstagramScraper:
     """Main Instagram scraper with GraphQL + instagrapi fallback"""
     
-    def __init__(self):
+    def __init__(self, session: Optional[Session] = None):
         self.graphql_scraper = GraphQLScraper()
         self.private_client = None
         self.is_authenticated = False
+        self.session = session
+        self.credential_service = CredentialService()
         
-    async def initialize_private_client(self):
-        """Initialize instagrapi client for private accounts"""
-        if not settings.instagram_username or not settings.instagram_password:
+    async def initialize_private_client(self, username: str):
+        """Initialize instagrapi client for private accounts using stored credentials"""
+        if not self.session:
             return False
+            
+        # Get credentials from credential service
+        credentials = self.credential_service.get_credentials(username, self.session)
+        if not credentials:
+            # Try with environment variables as fallback
+            if not settings.instagram_username or not settings.instagram_password:
+                return False
+            credentials = (settings.instagram_username, settings.instagram_password)
             
         try:
             self.private_client = Client()
             
-            # Decrypt credentials
-            username = decrypt_credential(settings.instagram_username)
-            password = decrypt_credential(settings.instagram_password)
+            # Configure proxy if enabled
+            if settings.use_proxy and settings.proxy_username and settings.proxy_password:
+                proxy_url = f"http://{settings.proxy_username}:{settings.proxy_password}@{settings.proxy_host}:{settings.proxy_port}"
+                
+                # Set proxy configuration
+                self.private_client.set_proxy(proxy_url)
+                
+                # Set SSL certificate if available
+                if settings.proxy_ssl_cert_path:
+                    import ssl
+                    ssl_context = ssl.create_default_context()
+                    ssl_context.load_verify_locations(settings.proxy_ssl_cert_path)
+                    self.private_client.request.verify = settings.proxy_ssl_cert_path
             
-            # Login
+            # Login using the credentials
+            username, password = credentials
             self.private_client.login(username, password)
             self.is_authenticated = True
             return True
@@ -67,7 +89,7 @@ class InstagramScraper:
         # Fallback to instagrapi if needed or requested
         if use_private or not followers:
             if not self.is_authenticated:
-                await self.initialize_private_client()
+                await self.initialize_private_client(username)
             
             if self.private_client:
                 try:
