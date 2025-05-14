@@ -10,7 +10,13 @@ class Settings(BaseSettings):
     # API
     api_host: str = "127.0.0.1"
     api_port: int = 8000
+    api_v1_prefix: str = "/api/v1"
     allowed_origins: str = "http://localhost:3000,http://localhost:5173"
+    
+    @property
+    def cors_origins(self) -> list[str]:
+        """Parse allowed origins for CORS"""
+        return self.allowed_origins.split(",")
     
     # Security
     secret_key: str = "change-me-in-production"
@@ -43,6 +49,9 @@ class Settings(BaseSettings):
     # Export Configuration
     export_batch_size: int = 5000
     export_timeout_seconds: int = 300
+    
+    # Worker Configuration
+    worker_timeout: int = 300  # 5 minutes default for RQ jobs
     
     # Logging
     log_level: str = "INFO"

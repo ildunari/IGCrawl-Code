@@ -10,6 +10,9 @@ engine = create_engine(
     echo=False,
 )
 
+# Import all models to register them with SQLModel
+from .models import Account, Scrape, Follower  # noqa
+
 
 def init_db():
     """Initialize database tables"""
@@ -34,3 +37,7 @@ def get_db_session():
         raise
     finally:
         session.close()
+
+
+# Alias for backward compatibility
+session_scope = get_db_session

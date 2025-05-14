@@ -7,6 +7,7 @@ from .database import init_db
 from .api import accounts, scrapes, export, health
 from .workers.scheduler import start_scheduler
 from .utils.rate_limiter import SlidingWindowRateLimiter, RateLimitMiddleware
+from .utils.dirs import ensure_directories
 
 settings = get_settings()
 rate_limiter = SlidingWindowRateLimiter()
@@ -16,6 +17,7 @@ rate_limiter = SlidingWindowRateLimiter()
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
     # Startup
+    ensure_directories()  # Create required directories first
     init_db()
     start_scheduler()
     yield
