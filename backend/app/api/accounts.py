@@ -137,17 +137,51 @@ async def remove_credentials(
     return {"message": "Credentials removed successfully"}
 
 
-@router.delete("/{account_id}")
+@router.delete("/{account_id}", status_code=204)
 async def delete_account(
     account_id: int,
     session: Session = Depends(get_session)
 ):
     """Delete an account and all related data"""
+    from ..models import Scrape, Follower
+    
     account = session.get(Account, account_id)
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
     
-    session.delete(account)
-    session.commit()
-    
-    return {"message": "Account deleted successfully"}
+    try:
+        # First, delete all followers for all scrapes of this account
+        scrapes = session.exec(select(Scrape).where(Scrape.account_id == account_id)).all()
+        for scrape in scrapes:
+            # Delete followers for this scrape
+            followers = session.exec(select(Follower).where(Follower.scrape_id == scrape.id)).all()
+            for follower in followers:
+                session.delete(follower)
+            # Delete the scrape itself
+            session.delete(scrape)
+        
+        # Remove credentials if they exist
+        try:
+            if account.username:
+                CredentialService.remove_credentials(
+                    username=account.username,
+                    session=session
+                )
+        except Exception:
+            # Continue even if credentials removal fails
+            pass
+        
+        # Finally delete the account
+        session.delete(account)
+        session.commit()
+        
+        # Return 204 No Content
+        return None
+    except Exception as e:
+        session.rollback()
+        # Log the error for debugging
+        print(f"Error deleting account {account_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to delete account: {str(e)}"
+        )

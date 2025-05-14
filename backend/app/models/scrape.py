@@ -56,7 +56,7 @@ class Scrape(SQLModel, table=True):
     
     # Relationships
     account: "Account" = Relationship(back_populates="scrapes")
-    followers: List["Follower"] = Relationship(back_populates="scrape")
+    followers: List["Follower"] = Relationship(back_populates="scrape", cascade_delete=True)
     
     class Config:
         json_schema_extra = {
