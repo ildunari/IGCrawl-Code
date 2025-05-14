@@ -2,8 +2,10 @@ import httpx
 from typing import Dict, List, Optional
 import json
 import re
+import os
 from ..utils.crypto import decrypt_credential
 from ..config import get_settings
+from ..utils.proxy_config import get_proxy_config
 
 
 class GraphQLScraper:
@@ -14,8 +16,6 @@ class GraphQLScraper:
     FOLLOWING_HASH = "6df9f20c4ad9b22fb7b35b816f0c426e"  # Instagram's query hash for following
     
     def __init__(self):
-        settings = get_settings()
-        
         # Prepare httpx client arguments
         client_args = {
             "headers": {
@@ -26,29 +26,38 @@ class GraphQLScraper:
             }
         }
         
-        # Configure proxy if enabled
-        if settings.use_proxy and settings.proxy_username and settings.proxy_password:
-            proxy_url = f"http://{settings.proxy_username}:{settings.proxy_password}@{settings.proxy_host}:{settings.proxy_port}"
-            client_args["proxy"] = proxy_url
-            
-            # Add SSL certificate if using HTTPS proxy
-            if settings.proxy_ssl_cert_path:
-                client_args["verify"] = settings.proxy_ssl_cert_path
+        # Add proxy configuration
+        proxy_config = get_proxy_config()
+        client_args.update(proxy_config)
+        
+        if proxy_config:
+            print(f"GraphQL using proxy configuration: {proxy_config.get('proxies', {})}")
+            if proxy_config.get('verify'):
+                print(f"Using SSL certificate: {proxy_config.get('verify')}")
         
         self.session = httpx.Client(**client_args)
     
     async def get_user_id(self, username: str) -> Optional[str]:
         """Get user ID from username"""
         try:
-            response = await self.session.get(f"https://www.instagram.com/{username}/")
+            url = f"https://www.instagram.com/{username}/"
+            print(f"Fetching Instagram page for user: {url}")
+            response = self.session.get(url)
+            print(f"Response status code: {response.status_code}")
             if response.status_code != 200:
+                print(f"Non-200 status code: {response.status_code}")
                 return None
             
             # Extract user ID from page content
             content = response.text
+            print(f"Response content length: {len(content)}")
             user_id_match = re.search(r'"profilePage_([0-9]+)"', content)
             if user_id_match:
-                return user_id_match.group(1)
+                user_id = user_id_match.group(1)
+                print(f"Found user ID: {user_id}")
+                return user_id
+            else:
+                print("Could not find user ID in page content")
             
             return None
         except Exception as e:
@@ -69,7 +78,7 @@ class GraphQLScraper:
         }
         
         try:
-            response = await self.session.get(self.BASE_URL, params=params)
+            response = self.session.get(self.BASE_URL, params=params)
             return response.json()
         except Exception as e:
             print(f"Error fetching followers: {e}")
@@ -89,7 +98,7 @@ class GraphQLScraper:
         }
         
         try:
-            response = await self.session.get(self.BASE_URL, params=params)
+            response = self.session.get(self.BASE_URL, params=params)
             return response.json()
         except Exception as e:
             print(f"Error fetching following: {e}")
@@ -108,8 +117,11 @@ class GraphQLScraper:
     
     async def get_all_followers(self, username: str) -> List[Dict]:
         """Get all followers for a username"""
+        print(f"Getting user ID for {username} in GraphQL")
         user_id = await self.get_user_id(username)
+        print(f"User ID from GraphQL: {user_id}")
         if not user_id:
+            print(f"Failed to get user ID for {username}")
             return []
         
         followers = []

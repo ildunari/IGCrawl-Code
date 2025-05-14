@@ -26,7 +26,7 @@ class Account(SQLModel, table=True):
     is_bookmarked: bool = Field(default=False)
     
     # Relationships
-    scrapes: List["Scrape"] = Relationship(back_populates="account", cascade_delete=True)
+    scrapes: List["Scrape"] = Relationship(back_populates="account")
     
     class Config:
         json_schema_extra = {

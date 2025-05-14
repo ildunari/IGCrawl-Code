@@ -1,6 +1,8 @@
-# Instagram Intelligence Dashboard v2
+# IGCrawl - Instagram Intelligence Dashboard v2
 
 A self-hosted Instagram analytics tool that safely crawls follower/following data for any handle (public or private) and provides powerful browsing, filtering, charting, and export capabilities.
+
+**⚠️ Current Status**: The application is functional with scraping completing successfully. Proxy authentication issues may result in 0 followers being returned - see [Known Issues](#known-issues) section.
 
 ## 🚀 Quick Start
 
@@ -111,10 +113,19 @@ The application implements Instagram's actual rate limits based on community res
 # Security
 SECRET_KEY=<32-byte-hex>
 ENCRYPTION_KEY=<32-byte-hex>
+INSTAGRAM_ENCRYPTION_KEY=<32-byte-hex>  # Generated automatically
 
 # Instagram
-INSTAGRAM_USERNAME=your_email@example.com
-INSTAGRAM_PASSWORD=your_password
+INSTAGRAM_USERNAME=your_instagram_username
+INSTAGRAM_PASSWORD=your_instagram_password
+
+# Proxy Configuration (BrightData)
+USE_PROXY=false  # Set to true to enable proxy
+PROXY_HOST=brd.superproxy.io
+PROXY_PORT=33335
+PROXY_USERNAME=brd-customer-hl_xxxxxx
+PROXY_PASSWORD=your_proxy_password
+PROXY_SSL_CERT_PATH=ssl/brightdata_proxy_ca/BrightData SSL certificate (port 33335).crt
 
 # Rate Limiting
 RATE_LIMIT_PER_MINUTE=2
@@ -228,6 +239,27 @@ docker-compose -f docker-compose.prod.yml logs -f
    - Enable WAL mode (automatic)
    - Check for long-running queries
    - Restart services if needed
+
+5. **SQLModel Relationship Errors**
+   - Remove `cascade_delete=True` from relationship definitions
+   - Restart backend and worker services
+
+6. **Proxy Authentication Errors (407 Auth Failed)**
+   - Verify BrightData proxy credentials
+   - Check proxy port matches certificate (33335 for new SSL cert)
+   - Consider disabling proxy temporarily (`USE_PROXY=false`)
+
+7. **Zero Followers Returned**
+   - May be due to proxy authentication issues
+   - Check if target account is private/public
+   - Verify Instagram credentials are correct
+   - Test with a popular public account
+
+## Known Issues
+
+- **Proxy Authentication**: BrightData proxy may return "407 Auth failed" errors. Consider disabling proxy for testing
+- **Frontend Pagination**: The scrapes page may show "No results" despite completed scrapes - use API endpoint directly to verify data
+- **React State Management**: Account page may require hard refresh (Cmd+Shift+R) to show updated data
 
 ## 📦 Deployment Guide
 

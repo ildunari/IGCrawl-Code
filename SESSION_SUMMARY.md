@@ -1,4 +1,8 @@
-# Instagram Intelligence Dashboard v2 - Continued Session Summary
+# Instagram Intelligence Dashboard v2 - Session Summary
+
+**Last Updated**: May 14, 2025 - Debugging and Fixing Core Functionality
+
+**⚠️ See [PROJECT_STATUS_2025_05_14.md](PROJECT_STATUS_2025_05_14.md) for current application state**
 
 ## Summary of Work Completed
 
@@ -143,17 +147,58 @@ Likely a static file serving configuration problem - file exists but frontend ca
 - Instagram scraping with instagrapi library
 - BrightData proxy with SSL certificate (port 33335)
 
-## Next Priority Actions
+## Session May 14, 2025 - Debugging and Fixes
 
-1. Fix CORS issue to ensure all responses include proper headers
-2. Resolve placeholder avatar serving issue
-3. Test complete cancel/partial save workflow
-4. Verify proxy functionality with BrightData SSL
+### Issues Fixed in This Session
 
-## Code References
+1. **SQLModel Relationship Errors**
+   - Fixed `cascade_delete=True` not supported error
+   - Modified models to remove unsupported parameter
 
-- Rate limiter: `/backend/app/utils/rate_limiter.py:68`
-- Middleware setup: `/backend/app/main.py:45-55`
-- Cancel endpoint: `/backend/app/api/scrapes.py:89`
-- Avatar usage: `/frontend/src/pages/Accounts.tsx:45`
-- Proxy config: `/backend/app/config.py:80-86`
+2. **Rate Limiting Blocking**
+   - Cleared Redis cache to reset rate limits
+   - Enabled new scrapes to be initiated
+
+3. **Worker Session Handling**
+   - Fixed InstagramScraper not receiving database session
+   - Modified worker tasks to pass session correctly
+
+4. **Proxy Configuration**
+   - Integrated BrightData proxy settings
+   - Fixed httpx proxy format issues
+   - Added debug logging throughout
+
+### Current State
+
+- ✅ Application is functional and scrapes complete successfully
+- ✅ All Docker services running correctly
+- ⚠️ Proxy authentication failing (407 Auth failed)
+- ⚠️ Scrapes return 0 followers due to proxy issues
+- ⚠️ Frontend may require refresh for updates
+
+### Next Priority Actions
+
+1. **Fix Proxy Authentication**
+   - Contact BrightData support
+   - Test alternative proxy services
+   - Consider non-proxy testing mode
+
+2. **Improve Frontend State Management**
+   - Fix React state update issues
+   - Improve real-time updates
+   - Fix pagination on scrapes page
+
+3. **Add Better Error Handling**
+   - User-friendly proxy error messages
+   - Retry logic for failed requests
+   - Better progress tracking
+
+## Updated Code References
+
+- Fixed models: `/backend/app/models/*.py`
+- Updated scrapers: `/backend/app/scrapers/instagram_scraper.py`
+- Worker tasks: `/backend/app/workers/tasks.py`
+- Environment config: `/backend/.env`
+- Proxy settings: `/backend/app/config.py`
+
+See [PROJECT_STATUS_2025_05_14.md](PROJECT_STATUS_2025_05_14.md) for complete details.

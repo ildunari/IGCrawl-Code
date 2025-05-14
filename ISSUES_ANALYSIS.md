@@ -112,6 +112,35 @@
 9. `.env.template` - Added key generation instructions
 10. `docker-compose.yml` - Removed version warning
 
+## Recent Issues Fixed (May 14, 2025)
+
+### 1. SQLModel Relationship Error
+**Problem**: `cascade_delete=True` parameter not supported
+**Fixed**: Removed from all relationship definitions
+
+### 2. Rate Limiting Blocking Scrapes
+**Problem**: Rate limiter prevented new scrapes
+**Fixed**: Cleared Redis cache to reset limits
+
+### 3. Worker Session Handling
+**Problem**: InstagramScraper not receiving database session
+**Fixed**: Modified worker tasks to pass session correctly
+
+### 4. Proxy Authentication Failure
+**Problem**: BrightData proxy returning "407 Auth failed"
+**Status**: Partially fixed - app works without proxy
+
+### 5. Frontend State Management
+**Problem**: Account data not updating without refresh
+**Status**: Ongoing - requires page refresh sometimes
+
 ## Current Status
 
-The application should now start without the critical errors we encountered. However, continuous monitoring and the recommended improvements should be implemented for production readiness.
+The application is **functional** with the following caveats:
+- ✅ All services running correctly
+- ✅ Scrapes complete successfully
+- ✅ Database operations working
+- ⚠️ Proxy authentication failing (returns 0 followers)
+- ⚠️ Frontend may require hard refresh for updates
+
+See [PROJECT_STATUS_2025_05_14.md](PROJECT_STATUS_2025_05_14.md) for detailed status update.

@@ -1,5 +1,9 @@
 # Instagram Intelligence Dashboard - Project Status
 
+**Last Updated**: May 14, 2025
+
+**⚠️ See [PROJECT_STATUS_2025_05_14.md](PROJECT_STATUS_2025_05_14.md) for the latest detailed status update**
+
 ## ✅ Completed Components
 
 ### Backend Infrastructure (100% complete)

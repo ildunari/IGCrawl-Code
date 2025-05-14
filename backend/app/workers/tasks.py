@@ -70,8 +70,9 @@ async def scrape_instagram_account(
         # Record the request
         rate_limiter.record_request(identifier)
         
-        # Initialize scraper
-        scraper = InstagramScraper()
+        # Initialize scraper with session
+        with session_scope() as session:
+            scraper = InstagramScraper(session)
         
         # Perform scrape based on type
         if scrape_type == "both":

@@ -3,9 +3,11 @@ from instagrapi import Client
 from instagrapi.exceptions import LoginRequired, PleaseWaitFewMinutes
 import time
 import asyncio
+import os
 from ..config import get_settings
 from ..services.credential_service import CredentialService
 from .graphql_scraper import GraphQLScraper
+from ..utils.proxy_config import configure_instagrapi_proxy
 from sqlmodel import Session
 
 settings = get_settings()
@@ -38,18 +40,7 @@ class InstagramScraper:
             self.private_client = Client()
             
             # Configure proxy if enabled
-            if settings.use_proxy and settings.proxy_username and settings.proxy_password:
-                proxy_url = f"http://{settings.proxy_username}:{settings.proxy_password}@{settings.proxy_host}:{settings.proxy_port}"
-                
-                # Set proxy configuration
-                self.private_client.set_proxy(proxy_url)
-                
-                # Set SSL certificate if available
-                if settings.proxy_ssl_cert_path:
-                    import ssl
-                    ssl_context = ssl.create_default_context()
-                    ssl_context.load_verify_locations(settings.proxy_ssl_cert_path)
-                    self.private_client.request.verify = settings.proxy_ssl_cert_path
+            configure_instagrapi_proxy(self.private_client)
             
             # Login using the credentials
             username, password = credentials
@@ -78,23 +69,33 @@ class InstagramScraper:
         """Scrape followers with GraphQL first, fallback to instagrapi"""
         followers = []
         
+        print(f"Starting follower scrape for {username} (use_private: {use_private})")
+        
         # Try GraphQL first
         try:
+            print(f"Trying GraphQL scraper for {username}")
             followers = await self.graphql_scraper.get_all_followers(username)
+            print(f"GraphQL returned {len(followers)} followers")
             if followers:
                 return followers
         except Exception as e:
-            print(f"GraphQL scraper failed: {e}")
+            print(f"GraphQL scraper failed for {username}: {e}")
         
         # Fallback to instagrapi if needed or requested
         if use_private or not followers:
+            print(f"Using private client for {username}")
             if not self.is_authenticated:
-                await self.initialize_private_client(username)
+                print(f"Initializing private client for {username}")
+                success = await self.initialize_private_client(username)
+                print(f"Private client initialization result: {success}")
             
             if self.private_client:
                 try:
+                    print(f"Getting user ID for {username}")
                     user_id = self.private_client.user_id_from_username(username)
+                    print(f"User ID: {user_id}")
                     followers_raw = self.private_client.user_followers(user_id)
+                    print(f"Retrieved {len(followers_raw)} followers from instagrapi")
                     followers = [
                         self.standardize_user_data(f.dict(), "instagrapi") 
                         for f in followers_raw
@@ -104,30 +105,43 @@ class InstagramScraper:
                     await asyncio.sleep(60)
                 except Exception as e:
                     print(f"Instagrapi scraper failed: {e}")
+            else:
+                print("Private client is not available")
         
+        print(f"Returning {len(followers)} followers for {username}")
         return followers
     
     async def scrape_following(self, username: str, use_private: bool = False) -> List[Dict]:
         """Scrape following with GraphQL first, fallback to instagrapi"""
         following = []
         
+        print(f"Starting following scrape for {username} (use_private: {use_private})")
+        
         # Try GraphQL first
         try:
+            print(f"Trying GraphQL scraper for following of {username}")
             following = await self.graphql_scraper.get_all_following(username)
+            print(f"GraphQL returned {len(following)} following")
             if following:
                 return following
         except Exception as e:
-            print(f"GraphQL scraper failed: {e}")
+            print(f"GraphQL scraper failed for following: {e}")
         
         # Fallback to instagrapi if needed or requested
         if use_private or not following:
+            print(f"Using private client for following of {username}")
             if not self.is_authenticated:
-                await self.initialize_private_client()
+                print(f"Initializing private client for {username}")
+                success = await self.initialize_private_client(username)
+                print(f"Private client initialization result: {success}")
             
             if self.private_client:
                 try:
+                    print(f"Getting user ID for {username}")
                     user_id = self.private_client.user_id_from_username(username)
+                    print(f"User ID: {user_id}")
                     following_raw = self.private_client.user_following(user_id)
+                    print(f"Retrieved {len(following_raw)} following from instagrapi")
                     following = [
                         self.standardize_user_data(f.dict(), "instagrapi") 
                         for f in following_raw
@@ -136,8 +150,11 @@ class InstagramScraper:
                     print("Rate limited, waiting...")
                     await asyncio.sleep(60)
                 except Exception as e:
-                    print(f"Instagrapi scraper failed: {e}")
+                    print(f"Instagrapi scraper failed for following: {e}")
+            else:
+                print("Private client is not available")
         
+        print(f"Returning {len(following)} following for {username}")
         return following
     
     async def scrape_both(self, username: str, use_private: bool = False) -> Dict[str, List[Dict]]:

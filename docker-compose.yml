@@ -20,12 +20,18 @@ services:
       - INSTAGRAM_PASSWORD=${INSTAGRAM_PASSWORD}
       - INSTAGRAM_ENCRYPTION_KEY=${INSTAGRAM_ENCRYPTION_KEY}
       - USE_PROXY=${USE_PROXY:-false}
+      - PROXY_HOST=${PROXY_HOST:-brd.superproxy.io}
+      - PROXY_PORT=${PROXY_PORT:-33335}
       - PROXY_USERNAME=${PROXY_USERNAME}
       - PROXY_PASSWORD=${PROXY_PASSWORD}
+      - PROXY_SSL_CERT_PATH=${PROXY_SSL_CERT_PATH}
+      - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-2}
+      - SCRAPE_DELAY_SECONDS=${SCRAPE_DELAY_SECONDS:-30}
     volumes:
       - ./data:/app/data
       - ./exports:/app/exports
       - ./backups:/app/backups
+      - ./ssl:/app/ssl
     ports:
       - "8000:8000"
     depends_on:
@@ -45,12 +51,18 @@ services:
       - INSTAGRAM_PASSWORD=${INSTAGRAM_PASSWORD}
       - INSTAGRAM_ENCRYPTION_KEY=${INSTAGRAM_ENCRYPTION_KEY}
       - USE_PROXY=${USE_PROXY:-false}
+      - PROXY_HOST=${PROXY_HOST:-brd.superproxy.io}
+      - PROXY_PORT=${PROXY_PORT:-33335}
       - PROXY_USERNAME=${PROXY_USERNAME}
       - PROXY_PASSWORD=${PROXY_PASSWORD}
+      - PROXY_SSL_CERT_PATH=${PROXY_SSL_CERT_PATH}
+      - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-2}
+      - SCRAPE_DELAY_SECONDS=${SCRAPE_DELAY_SECONDS:-30}
     volumes:
       - ./data:/app/data
       - ./exports:/app/exports
       - ./backups:/app/backups
+      - ./ssl:/app/ssl
     depends_on:
       - redis
       - backend
