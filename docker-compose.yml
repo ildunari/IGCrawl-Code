@@ -1,0 +1,65 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    restart: unless-stopped
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-here}
+      - DATABASE_URL=sqlite:///./data/igcrawl.db
+      - REDIS_URL=redis://redis:6379/0
+      - INSTAGRAM_USERNAME=${INSTAGRAM_USERNAME}
+      - INSTAGRAM_PASSWORD=${INSTAGRAM_PASSWORD}
+      - INSTAGRAM_ENCRYPTION_KEY=${INSTAGRAM_ENCRYPTION_KEY}
+    volumes:
+      - ./data:/app/data
+      - ./exports:/app/exports
+      - ./backups:/app/backups
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    restart: unless-stopped
+    command: rq worker
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-here}
+      - DATABASE_URL=sqlite:///./data/igcrawl.db
+      - REDIS_URL=redis://redis:6379/0
+      - INSTAGRAM_USERNAME=${INSTAGRAM_USERNAME}
+      - INSTAGRAM_PASSWORD=${INSTAGRAM_PASSWORD}
+      - INSTAGRAM_ENCRYPTION_KEY=${INSTAGRAM_ENCRYPTION_KEY}
+    volumes:
+      - ./data:/app/data
+      - ./exports:/app/exports
+      - ./backups:/app/backups
+    depends_on:
+      - redis
+      - backend
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    environment:
+      - VITE_API_URL=http://localhost:8000/api/v1
+
+volumes:
+  redis_data:
