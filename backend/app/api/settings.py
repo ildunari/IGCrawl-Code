@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 from ..database import get_session
-from ..config import get_settings, Settings
+from ..config import Settings
 from ..services.credential_service import CredentialService
 
 router = APIRouter()
@@ -15,7 +15,7 @@ router = APIRouter()
 @router.get("/", response_model=Dict[str, Any])
 async def get_settings(session: Session = Depends(get_session)):
     """Get current settings from environment and database"""
-    settings = get_settings()
+    settings = Settings()
     credential_service = CredentialService()
     
     # Get stored Instagram credentials

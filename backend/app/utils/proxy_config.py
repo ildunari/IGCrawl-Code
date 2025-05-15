@@ -32,6 +32,9 @@ def get_brightdata_certificate_path() -> Optional[str]:
     
     # Check common locations - prioritize the correct certificate for port 33335
     possible_paths = [
+        # Check the simplified path first (recommended)
+        "../ssl/brightdata/brightdata.crt",
+        "/Users/kosta/Documents/ProjectsCode/IGCrawl-Code/ssl/brightdata/brightdata.crt",
         # Check the exact path we configured in .env first
         "../ssl/brightdata_proxy_ca/BrightData SSL certificate (port 33335).crt",
         # Actual certificate location from our filesystem (with correct relative paths)
@@ -104,14 +107,19 @@ def test_proxy_connection() -> bool:
         return True
     
     proxy_url = get_proxy_url(with_session=True)
-    ssl_context = create_ssl_context()
+    
+    # Create a combined certificate bundle for better compatibility
+    bundle_path = create_combined_certificate_bundle()
     
     try:
-        # Test with httpx client - note that httpx uses 'proxy' not 'proxies'
-        # Temporarily disable SSL verification for BrightData proxy
+        # Get certificate path
+        cert_path = bundle_path if bundle_path else get_brightdata_certificate_path()
+        logger.info(f"Testing proxy connection using certificate: {cert_path}")
+        
+        # Test with httpx client using the certificate if available
         client = httpx.Client(
             proxy=proxy_url,
-            verify=False
+            verify=cert_path if cert_path else False
         )
         
         response = client.get('https://lumtest.com/myip.json', timeout=10)
@@ -120,7 +128,20 @@ def test_proxy_connection() -> bool:
         return True
     except Exception as e:
         logger.error(f"Proxy test failed: {str(e)}")
-        return False
+        logger.warning("Falling back to disabled SSL verification for testing")
+        try:
+            # Try again with SSL verification disabled
+            client = httpx.Client(
+                proxy=proxy_url,
+                verify=False
+            )
+            response = client.get('https://lumtest.com/myip.json', timeout=10)
+            result = response.json()
+            logger.warning(f"Proxy test with disabled SSL verification successful: {result}")
+            return True
+        except Exception as fallback_e:
+            logger.error(f"Proxy fallback test also failed: {str(fallback_e)}")
+            return False
     finally:
         if 'client' in locals():
             client.close()
@@ -135,14 +156,25 @@ def get_proxy_config(with_session=True) -> Dict[str, any]:
         return {}
     
     proxy_url = get_proxy_url(with_session=with_session)
-    ssl_context = create_ssl_context()
+    
+    # Create a combined certificate bundle for better compatibility
+    bundle_path = create_combined_certificate_bundle()
+    
+    # If we have a bundle, use it; otherwise, use the primary certificate
+    if bundle_path:
+        verify = bundle_path
+        logger.info(f"Using combined certificate bundle: {bundle_path}")
+    else:
+        cert_path = get_brightdata_certificate_path()
+        verify = cert_path if cert_path else False
+        logger.info(f"Using single certificate: {cert_path}")
     
     config = {
         "proxies": {
             "http://": proxy_url,
             "https://": proxy_url
         },
-        "verify": ssl_context
+        "verify": verify
     }
     
     # Log proxy configuration (without password)
@@ -161,12 +193,26 @@ def configure_httpx_client(client: httpx.Client, with_session=True) -> None:
         return
     
     proxy_url = get_proxy_url(with_session=with_session)
-    cert_path = get_brightdata_certificate_path()
+    
+    # Create a combined certificate bundle for better compatibility
+    bundle_path = create_combined_certificate_bundle()
+    
+    # If we have a bundle, use it; otherwise, use the primary certificate
+    if bundle_path:
+        verify = bundle_path
+        logger.info(f"Configuring httpx client with certificate bundle: {bundle_path}")
+    else:
+        cert_path = get_brightdata_certificate_path()
+        verify = cert_path if cert_path else False
+        logger.info(f"Configuring httpx client with certificate: {cert_path}")
     
     # httpx uses proxy (singular) for all protocols
     client._proxy = proxy_url
-    # Temporarily disable SSL verification for BrightData proxy
-    client._verify = False
+    client._verify = verify
+    
+    # If verify is False, log a warning
+    if not verify:
+        logger.warning("SSL verification disabled for httpx client - this is insecure!")
 
 def configure_instagrapi_proxy(client, with_session=True) -> None:
     """
@@ -180,48 +226,109 @@ def configure_instagrapi_proxy(client, with_session=True) -> None:
     proxy_url = get_proxy_url(with_session=with_session)
     client.set_proxy(proxy_url)
     
-    # Temporarily disable SSL verification for BrightData proxy issues
+    # Create a combined certificate bundle for better compatibility
+    bundle_path = create_combined_certificate_bundle()
+    
+    # Try to configure the client with our certificate bundle
     try:
-        # For the private API client sessions
-        if hasattr(client, 'private') and hasattr(client.private, 'session'):
-            client.private.session.verify = False
-        # For the public API client sessions
-        if hasattr(client, 'public'):
-            client.public.verify = False
-        # Try setting the requests adapter verify to False
-        if hasattr(client, 'request_session'):
-            client.request_session.verify = False
-            
-        logger.info(f"Configured instagrapi with proxy (SSL verification disabled)")
+        # First try with certificate bundle
+        if bundle_path:
+            logger.info(f"Configuring instagrapi with certificate bundle: {bundle_path}")
+            # For the private API client sessions
+            if hasattr(client, 'private') and hasattr(client.private, 'session'):
+                client.private.session.verify = bundle_path
+            # For the public API client sessions
+            if hasattr(client, 'public'):
+                client.public.verify = bundle_path
+            # Try setting the requests adapter verify
+            if hasattr(client, 'request_session'):
+                client.request_session.verify = bundle_path
+        else:
+            # Try with single certificate
+            cert_path = get_brightdata_certificate_path()
+            if cert_path:
+                logger.info(f"Configuring instagrapi with certificate: {cert_path}")
+                # For the private API client sessions
+                if hasattr(client, 'private') and hasattr(client.private, 'session'):
+                    client.private.session.verify = cert_path
+                # For the public API client sessions
+                if hasattr(client, 'public'):
+                    client.public.verify = cert_path
+                # Try setting the requests adapter verify
+                if hasattr(client, 'request_session'):
+                    client.request_session.verify = cert_path
+            else:
+                # Fall back to disabled SSL verification if no certificate is available
+                logger.warning("DISABLING SSL VERIFICATION FOR INSTAGRAPI - USING PROXY WITHOUT CERTIFICATE VERIFICATION!")
+                if hasattr(client, 'private') and hasattr(client.private, 'session'):
+                    client.private.session.verify = False
+                if hasattr(client, 'public'):
+                    client.public.verify = False
+                if hasattr(client, 'request_session'):
+                    client.request_session.verify = False
+                
+        logger.info(f"Configured instagrapi with proxy and SSL settings")
     except Exception as e:
         logger.error(f"Could not configure proxy for instagrapi: {e}")
+        logger.warning("DISABLING SSL VERIFICATION FOR INSTAGRAPI - USING PROXY WITHOUT CERTIFICATE VERIFICATION!")
+        # Fall back to disabled SSL verification
+        try:
+            if hasattr(client, 'private') and hasattr(client.private, 'session'):
+                client.private.session.verify = False
+            if hasattr(client, 'public'):
+                client.public.verify = False
+            if hasattr(client, 'request_session'):
+                client.request_session.verify = False
+        except Exception as fallback_e:
+            logger.error(f"Could not even configure fallback settings: {fallback_e}")
 
 def create_combined_certificate_bundle() -> Optional[str]:
     """
     Create a combined certificate bundle if multiple certificates exist
     """
+    logger.info("Creating combined certificate bundle...")
     cert_files = []
     
-    # List of certificate files to combine
-    cert_paths = [
-        get_brightdata_certificate_path(),  # Primary certificate
-        "ssl/brightdata_cert_bundle/ca.crt",
-        "ssl/brightdata_cert_bundle/intermediate.crt",
-        "ssl/brightdata_cert_bundle/root.crt",
+    # Main certificate paths to try
+    main_cert_path = get_brightdata_certificate_path()
+    if main_cert_path:
+        cert_files.append(main_cert_path)
+        logger.info(f"Added primary certificate: {main_cert_path}")
+    
+    # List of additional certificate files to combine
+    project_root = Path(__file__).parent.parent.parent.parent
+    additional_cert_paths = [
+        project_root / "ssl/brightdata_cert_bundle/ca.crt",
+        project_root / "ssl/brightdata_cert_bundle/intermediate.crt",
+        project_root / "ssl/brightdata_cert_bundle/root.crt",
+        # Also check system certificate store paths
+        "/etc/ssl/certs/ca-certificates.crt",  # Debian/Ubuntu
+        "/etc/pki/tls/certs/ca-bundle.crt",    # CentOS/RHEL
+        "/etc/ssl/ca-bundle.pem",              # OpenSUSE
+        "/usr/local/share/certs/ca-root-nss.crt", # FreeBSD
+        "/usr/local/etc/openssl/cert.pem",     # macOS
     ]
     
-    for path in cert_paths:
-        if path and os.path.exists(path):
-            cert_files.append(path)
+    # Add any valid certificate files
+    for path in additional_cert_paths:
+        if os.path.exists(str(path)):
+            cert_files.append(str(path))
+            logger.info(f"Added additional certificate: {path}")
     
     if not cert_files:
+        logger.warning("No certificate files found for bundle")
         return None
     
     # Create temporary bundle file
     with tempfile.NamedTemporaryFile(mode='w', suffix='.bundle.crt', delete=False) as bundle:
+        bundle_path = bundle.name
         for cert_file in cert_files:
-            with open(cert_file, 'r') as f:
-                bundle.write(f.read())
-                bundle.write('\n')
+            try:
+                with open(cert_file, 'r') as f:
+                    bundle.write(f.read())
+                    bundle.write('\n')
+            except Exception as e:
+                logger.error(f"Error reading certificate file {cert_file}: {e}")
         
-        return bundle.name
+        logger.info(f"Created certificate bundle at: {bundle_path}")
+        return bundle_path
