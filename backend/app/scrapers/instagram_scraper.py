@@ -4,11 +4,15 @@ from instagrapi.exceptions import LoginRequired, PleaseWaitFewMinutes
 import time
 import asyncio
 import os
+import urllib3
 from ..config import get_settings
 from ..services.credential_service import CredentialService
 from .graphql_scraper import GraphQLScraper
 from ..utils.proxy_config import configure_instagrapi_proxy
 from sqlmodel import Session
+
+# Disable SSL warnings when using proxies
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 settings = get_settings()
 

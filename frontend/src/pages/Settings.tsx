@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -10,13 +10,16 @@ import { Save, Key, Shield, Server, Archive, ChevronDown, ChevronUp, ExternalLin
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from '@/lib/toast';
 import { getProxyUrlError, getRateLimitError, getJitterError } from '@/lib/validators';
+import { settingsApi } from '@/lib/api';
 
 export function Settings() {
+  const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState({
     instagramUsername: '',
     instagramPassword: '',
     proxyUrl: '',
-    rateLimitPerMinute: 2,  // Safe default based on Instagram limits
+    useProxy: false,
+    rateLimitPerMinute: 2,
     scrapeDelaySeconds: 30,
     jitterSecondsMin: 5,
     jitterSecondsMax: 15,
@@ -35,9 +38,27 @@ export function Settings() {
     jitter: null as string | null,
   });
 
+  // Load settings on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const data = await settingsApi.get();
+        setSettings({
+          ...settings,
+          ...data,
+        });
+      } catch (error) {
+        toast.error('Failed to load settings');
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadSettings();
+  }, []);
+
   const validateForm = useCallback(() => {
     const newErrors = {
-      proxyUrl: getProxyUrlError(settings.proxyUrl),
+      proxyUrl: settings.useProxy ? getProxyUrlError(settings.proxyUrl) : null,
       rateLimitPerMinute: getRateLimitError(settings.rateLimitPerMinute),
       jitter: getJitterError(settings.jitterSecondsMin, settings.jitterSecondsMax),
     };
@@ -48,7 +69,7 @@ export function Settings() {
 
   const handleProxyUrlChange = (value: string) => {
     setSettings({ ...settings, proxyUrl: value });
-    setErrors({ ...errors, proxyUrl: getProxyUrlError(value) });
+    setErrors({ ...errors, proxyUrl: settings.useProxy ? getProxyUrlError(value) : null });
   };
 
   const handleRateLimitChange = (value: number) => {
@@ -63,7 +84,7 @@ export function Settings() {
   };
 
   const handleTestProxy = async () => {
-    if (!settings.proxyUrl) {
+    if (!settings.proxyUrl && settings.useProxy) {
       toast.error('Please enter a proxy URL to test');
       return;
     }
@@ -75,11 +96,14 @@ export function Settings() {
     
     try {
       setTestingProxy(true);
-      // TODO: Implement actual proxy test API call
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
-      toast.success('Proxy connection successful!');
+      const result = await settingsApi.testProxy();
+      if (result.success) {
+        toast.success(result.message);
+      } else {
+        toast.error(result.message);
+      }
     } catch (error) {
-      toast.error('Failed to connect to proxy. Please check your URL and credentials.');
+      toast.error('Failed to test proxy connection');
     } finally {
       setTestingProxy(false);
     }
@@ -93,15 +117,26 @@ export function Settings() {
 
     try {
       setSaving(true);
-      // TODO: Implement settings save API call
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API call
-      toast.success('Settings saved successfully!');
+      const result = await settingsApi.update(settings);
+      if (result.success) {
+        toast.success(result.message);
+      } else {
+        toast.error(result.message || 'Failed to save settings');
+      }
     } catch (error) {
       toast.error('Failed to save settings. Please try again.');
     } finally {
       setSaving(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="p-8 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <TooltipProvider>
@@ -179,132 +214,151 @@ export function Settings() {
             Proxy Configuration
           </CardTitle>
           <CardDescription>
-            Configure proxy settings to avoid rate limiting. Optional.
+            Configure proxy settings to avoid rate limiting. Currently using {settings.useProxy ? 'BrightData proxy' : 'direct connection'}.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-medium">Need help setting up a proxy?</p>
-            <Button
-              variant="soft"
-              size="sm"
-              onClick={() => setShowProxyInfo(!showProxyInfo)}
-            >
-              {showProxyInfo ? (
-                <>Hide Info <ChevronUp className="h-3 w-3 ml-1 transform transition-transform duration-200" /></>
-              ) : (
-                <>Learn More <ChevronDown className="h-3 w-3 ml-1 transform transition-transform duration-200" /></>
-              )}
-            </Button>
-          </div>
-          {showProxyInfo && (
-            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 space-y-3">
-              <h4 className="font-medium flex items-center gap-2">
-                <Info className="h-4 w-4" />
-                What is a proxy and why use one?
-              </h4>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>Use Proxy</Label>
               <p className="text-sm text-muted-foreground">
-                A proxy server acts as an intermediary between your requests and Instagram. 
-                Using a proxy helps you avoid detection and rate limiting by making your 
-                requests appear to come from different IP addresses.
+                Enable proxy for all Instagram requests
               </p>
-              
-              <h4 className="font-medium mt-4">Recommended Free Proxy Options:</h4>
-              <ul className="text-sm text-muted-foreground space-y-2">
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 dark:text-blue-400 font-medium">1.</span>
-                  <div>
-                    <span className="font-medium">Bright Data Free Plan</span> 
-                    <a href="https://brightdata.com" target="_blank" rel="noopener noreferrer" 
-                       className="text-blue-600 dark:text-blue-400 ml-1 inline-flex items-center">
-                      (brightdata.com <ExternalLink className="h-3 w-3 ml-1" />)
-                    </a>
-                    <p className="mt-1">Offers a limited free tier with rotating residential IPs. 
-                    Best for serious scraping with 7GB/month free.</p>
-                  </div>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 dark:text-blue-400 font-medium">2.</span>
-                  <div>
-                    <span className="font-medium">ProxyScrape Free Proxies</span>
-                    <a href="https://proxyscrape.com/free-proxy-list" target="_blank" rel="noopener noreferrer"
-                       className="text-blue-600 dark:text-blue-400 ml-1 inline-flex items-center">
-                      (proxyscrape.com <ExternalLink className="h-3 w-3 ml-1" />)
-                    </a>
-                    <p className="mt-1">Public HTTP proxies updated every minute. 
-                    Less reliable but completely free.</p>
-                  </div>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 dark:text-blue-400 font-medium">3.</span>
-                  <div>
-                    <span className="font-medium">Tor Network</span>
-                    <a href="https://www.torproject.org" target="_blank" rel="noopener noreferrer"
-                       className="text-blue-600 dark:text-blue-400 ml-1 inline-flex items-center">
-                      (torproject.org <ExternalLink className="h-3 w-3 ml-1" />)
-                    </a>
-                    <p className="mt-1">Free anonymity network. Setup: Install Tor, 
-                    use <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">socks5://localhost:9050</code></p>
-                  </div>
-                </li>
-              </ul>
-              
-              <h4 className="font-medium mt-4">How to set up:</h4>
-              <ol className="text-sm text-muted-foreground space-y-1">
-                <li>1. Choose a proxy service from the list above</li>
-                <li>2. Sign up and get your proxy URL (usually in format: http://username:password@proxy-server:port)</li>
-                <li>3. Enter the full proxy URL in the field below</li>
-                <li>4. Save settings and the proxy will be used for all Instagram requests</li>
-              </ol>
-              
-              <Alert className="mt-3">
-                <AlertDescription className="text-sm">
-                  <strong>Important:</strong> Free proxies are less reliable and slower. 
-                  For production use, consider a paid proxy service for better stability and speed.
-                </AlertDescription>
-              </Alert>
             </div>
-          )}
-          <div className="space-y-2">
-            <Label htmlFor="proxy">Proxy URL</Label>
-            <div className="relative">
-              <div className="flex gap-2">
-                <Input
-                  id="proxy"
-                  type="text"
-                  value={settings.proxyUrl}
-                  onChange={(e) => handleProxyUrlChange(e.target.value)}
-                  placeholder="http://proxy.example.com:8080"
-                  className={errors.proxyUrl ? "border-red-500 flex-1" : "flex-1"}
-                />
+            <Switch
+              checked={settings.useProxy}
+              onCheckedChange={(checked) => setSettings({ ...settings, useProxy: checked })}
+            />
+          </div>
+          
+          {settings.useProxy && (
+            <>
+              <Separator />
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium">Need help setting up a proxy?</p>
                 <Button
-                  type="button"
-                  variant="outline"
+                  variant="soft"
                   size="sm"
-                  onClick={handleTestProxy}
-                  disabled={testingProxy || !settings.proxyUrl || !!errors.proxyUrl}
+                  onClick={() => setShowProxyInfo(!showProxyInfo)}
                 >
-                  {testingProxy ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Testing...
-                    </>
+                  {showProxyInfo ? (
+                    <>Hide Info <ChevronUp className="h-3 w-3 ml-1 transform transition-transform duration-200" /></>
                   ) : (
-                    'Test Proxy'
+                    <>Learn More <ChevronDown className="h-3 w-3 ml-1 transform transition-transform duration-200" /></>
                   )}
                 </Button>
               </div>
-              {errors.proxyUrl && (
-                <div className="flex items-center gap-1 mt-1 text-sm text-red-500">
-                  <AlertCircle className="h-3 w-3" />
-                  {errors.proxyUrl}
+              {showProxyInfo && (
+                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 space-y-3">
+                  <h4 className="font-medium flex items-center gap-2">
+                    <Info className="h-4 w-4" />
+                    What is a proxy and why use one?
+                  </h4>
+                  <p className="text-sm text-muted-foreground">
+                    A proxy server acts as an intermediary between your requests and Instagram. 
+                    Using a proxy helps you avoid detection and rate limiting by making your 
+                    requests appear to come from different IP addresses.
+                  </p>
+                  
+                  <h4 className="font-medium mt-4">Recommended Free Proxy Options:</h4>
+                  <ul className="text-sm text-muted-foreground space-y-2">
+                    <li className="flex items-start gap-2">
+                      <span className="text-blue-600 dark:text-blue-400 font-medium">1.</span>
+                      <div>
+                        <span className="font-medium">Bright Data Free Plan</span> 
+                        <a href="https://brightdata.com" target="_blank" rel="noopener noreferrer" 
+                           className="text-blue-600 dark:text-blue-400 ml-1 inline-flex items-center">
+                          (brightdata.com <ExternalLink className="h-3 w-3 ml-1" />)
+                        </a>
+                        <p className="mt-1">Offers a limited free tier with rotating residential IPs. 
+                        Best for serious scraping with 7GB/month free.</p>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-blue-600 dark:text-blue-400 font-medium">2.</span>
+                      <div>
+                        <span className="font-medium">ProxyScrape Free Proxies</span>
+                        <a href="https://proxyscrape.com/free-proxy-list" target="_blank" rel="noopener noreferrer"
+                           className="text-blue-600 dark:text-blue-400 ml-1 inline-flex items-center">
+                          (proxyscrape.com <ExternalLink className="h-3 w-3 ml-1" />)
+                        </a>
+                        <p className="mt-1">Public HTTP proxies updated every minute. 
+                        Less reliable but completely free.</p>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-blue-600 dark:text-blue-400 font-medium">3.</span>
+                      <div>
+                        <span className="font-medium">Tor Network</span>
+                        <a href="https://www.torproject.org" target="_blank" rel="noopener noreferrer"
+                           className="text-blue-600 dark:text-blue-400 ml-1 inline-flex items-center">
+                          (torproject.org <ExternalLink className="h-3 w-3 ml-1" />)
+                        </a>
+                        <p className="mt-1">Free anonymity network. Setup: Install Tor, 
+                        use <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">socks5://localhost:9050</code></p>
+                      </div>
+                    </li>
+                  </ul>
+                  
+                  <h4 className="font-medium mt-4">How to set up:</h4>
+                  <ol className="text-sm text-muted-foreground space-y-1">
+                    <li>1. Choose a proxy service from the list above</li>
+                    <li>2. Sign up and get your proxy URL (usually in format: http://username:password@proxy-server:port)</li>
+                    <li>3. Enter the full proxy URL in the field below</li>
+                    <li>4. Save settings and the proxy will be used for all Instagram requests</li>
+                  </ol>
+                  
+                  <Alert className="mt-3">
+                    <AlertDescription className="text-sm">
+                      <strong>Important:</strong> Free proxies are less reliable and slower. 
+                      For production use, consider a paid proxy service for better stability and speed.
+                    </AlertDescription>
+                  </Alert>
                 </div>
               )}
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Format: http://username:password@server:port
-            </p>
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="proxy">Proxy URL</Label>
+                <div className="relative">
+                  <div className="flex gap-2">
+                    <Input
+                      id="proxy"
+                      type="text"
+                      value={settings.proxyUrl}
+                      onChange={(e) => handleProxyUrlChange(e.target.value)}
+                      placeholder="http://proxy.example.com:8080"
+                      className={errors.proxyUrl ? "border-red-500 flex-1" : "flex-1"}
+                      disabled={!settings.useProxy}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleTestProxy}
+                      disabled={testingProxy || !settings.proxyUrl || !!errors.proxyUrl || !settings.useProxy}
+                    >
+                      {testingProxy ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Testing...
+                        </>
+                      ) : (
+                        'Test Proxy'
+                      )}
+                    </Button>
+                  </div>
+                  {errors.proxyUrl && (
+                    <div className="flex items-center gap-1 mt-1 text-sm text-red-500">
+                      <AlertCircle className="h-3 w-3" />
+                      {errors.proxyUrl}
+                    </div>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Format: http://username:password@server:port
+                </p>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 

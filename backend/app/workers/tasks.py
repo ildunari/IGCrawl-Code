@@ -22,6 +22,7 @@ def update_scrape_progress(job_id: str, progress: Dict, scrape_id: Optional[int]
         progress["scrape_id"] = scrape_id
     progress_key = f"scrape_progress_{job_id}"
     redis_conn.setex(progress_key, 300, json.dumps(progress))  # 5 minute TTL
+    print(f"UPDATE PROGRESS: {progress}")  # Add console logging
 
 
 async def scrape_instagram_account(
@@ -31,6 +32,7 @@ async def scrape_instagram_account(
     use_private: bool = False
 ):
     """Worker task to scrape Instagram account"""
+    print(f"[WORKER] Starting scrape task - Scrape ID: {scrape_id}, Username: {username}, Type: {scrape_type}, Use Private: {use_private}")
     job_id = None
     
     try:
