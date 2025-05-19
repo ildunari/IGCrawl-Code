@@ -83,6 +83,7 @@
 
 ```
 IGCrawl-Code/
+├── requirements.txt
 ├── backend/
 │   ├── app/
 │   │   ├── api/
@@ -117,7 +118,6 @@ IGCrawl-Code/
 │   │   ├── database.py
 │   │   └── main.py
 │   ├── tests/
-│   └── requirements.txt
 ├── frontend/
 │   ├── src/
 │   ├── package.json

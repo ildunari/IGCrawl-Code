@@ -45,9 +45,8 @@ This guide covers the complete deployment process for the Instagram Intelligence
 
 2. Install dependencies:
    ```powershell
-   cd backend
    pip install -r requirements.txt
-   cd ../frontend
+   cd frontend
    npm install
    npm run build
    ```

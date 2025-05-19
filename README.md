@@ -81,6 +81,7 @@ The application implements Instagram's actual rate limits based on community res
 ## 📁 Project Structure
 
 ```
+├── requirements.txt
 ├── backend/
 │   ├── app/
 │   │   ├── api/          # API endpoints
@@ -88,7 +89,6 @@ The application implements Instagram's actual rate limits based on community res
 │   │   ├── services/     # Business logic
 │   │   ├── utils/        # Utilities (encryption, rate limiting)
 │   │   └── workers/      # Background job handlers
-│   └── requirements.txt
 ├── frontend/
 │   ├── src/
 │   │   ├── components/   # Reusable UI components
