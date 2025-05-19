@@ -88,7 +88,7 @@ The application implements Instagram's actual rate limits based on community res
 │   │   ├── services/     # Business logic
 │   │   ├── utils/        # Utilities (encryption, rate limiting)
 │   │   └── workers/      # Background job handlers
-│   └── requirements.txt
+├── requirements.txt
 ├── frontend/
 │   ├── src/
 │   │   ├── components/   # Reusable UI components
