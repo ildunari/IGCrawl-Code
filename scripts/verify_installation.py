@@ -8,6 +8,11 @@ import importlib
 import os
 from pathlib import Path
 
+# Ensure project root is on the import path so `backend` can be imported
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
 
 def check_python_version():
     """Check Python version is 3.11+"""

@@ -97,12 +97,11 @@ if ($Mode -eq "native") {
     
     # Install Python dependencies
     Write-Host "Installing Python dependencies..." -ForegroundColor Yellow
-    Set-Location backend
-    pip install -r requirements.txt
+    pip install -r "$ProjectRoot\requirements.txt"
     
     # Install frontend dependencies and build
     Write-Host "Building frontend..." -ForegroundColor Yellow
-    Set-Location ../frontend
+    Set-Location frontend
     npm install
     npm run build
     

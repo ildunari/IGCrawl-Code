@@ -10,9 +10,7 @@ if [[ $python_version < "3.11" ]]; then
 fi
 
 # Install backend requirements
-cd backend
 pip install -r requirements.txt
-cd ..
 
 # Install frontend dependencies
 cd frontend
